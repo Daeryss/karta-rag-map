@@ -17,9 +17,11 @@ repositories {
 }
 
 dependencies {
-    implementation(platform("dev.langchain4j:langchain4j-bom:1.12.1"))
+    implementation(platform("dev.langchain4j:langchain4j-bom:1.15.0"))
+    implementation(platform("dev.langchain4j:langchain4j-community-bom:1.15.0-beta25"))
     implementation("dev.langchain4j:langchain4j")
     implementation("dev.langchain4j:langchain4j-ollama")
+    implementation("dev.langchain4j:langchain4j-community-lucene")
 
     implementation("info.picocli:picocli:4.7.6")
     annotationProcessor("info.picocli:picocli-codegen:4.7.6")

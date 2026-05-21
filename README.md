@@ -28,25 +28,36 @@ Map the Apache Kafka `core/` module (~150k LOC) into a navigable semantic atlas.
 |---|---|---|
 | Language | Java 21 (Corretto) | |
 | Build | Gradle (Kotlin DSL) + wrapper | |
-| RAG framework | [LangChain4j 1.12.1](https://docs.langchain4j.dev) | |
+| RAG framework | [LangChain4j 1.15.0](https://docs.langchain4j.dev) | core + `langchain4j-community-lucene:1.15.0-beta25` |
 | LLM runtime | [Ollama](https://ollama.com) | local-only in Phase A |
 | Embedding model | `nomic-embed-text` (768 dim) | candidate; benchmark vs `jina-embeddings-v2-base-code` planned |
 | Generation model | `qwen2.5-coder:7b` | for query-time reasoning, lands in v0.2 |
-| Vector store | **TBD** — see below | |
+| Vector store | **Apache Lucene 9.x** via `langchain4j-community-lucene` | pure-JVM, hybrid BM25+vector in one index |
 | CLI | picocli | |
 | Tests | JUnit 5 | |
 
-## Vector store — under investigation
+## Vector store — decision
 
-| Option | Type | Ops cost | Hybrid search | Notes |
+**Locked: Apache Lucene 9.x via `langchain4j-community-lucene:1.15.0-beta25`** (pure JVM, embedded, zero ops).
+
+### Why Lucene over the alternatives
+
+| Candidate | LC4j module | Ops in Phase A | Hybrid BM25+vec | Verdict |
 |---|---|---|---|---|
-| Lucene 9.x HNSW | Embedded JVM | Zero | Built-in (BM25 + vector) | Most natural fit for pure-Java tool |
-| Qdrant (embedded) | Sidecar | Docker | Yes | Best raw performance |
-| pgvector | External | Postgres | Yes (via FTS) | Standard if Postgres already in stack |
-| LanceDB | Embedded Rust + JNI | Zero | Limited | Columnar storage, fast |
-| sqlite-vec | Embedded via JNI | Zero | Manual | Simplest, Java integration immature |
+| **Lucene** | ✅ `langchain4j-community-lucene` | Zero | ✅ **same index, same library** | **picked** |
+| JVector | ✅ `langchain4j-community-jvector` | Zero | ❌ vector-only; needs separate BM25 + RRF in app code | runner-up |
+| Qdrant | ✅ `langchain4j-qdrant` | Requires Docker | ✅ native sparse+dense fusion | fallback if Lucene perf disappoints |
+| pgvector | ✅ `langchain4j-pgvector` | Requires Postgres | ✅ via FTS | rejected — violates zero-ops constraint |
+| LanceDB | ❌ no LC4j module | Java SDK remote-only as of 05/2026 | n/a | rejected |
+| sqlite-vec | ❌ no LC4j module | JNI loader pain | manual | rejected |
+| Chroma | ✅ `langchain4j-chroma` | Docker | limited | rejected — Docker-or-bust with no upside over Qdrant |
+| Weaviate | ✅ `langchain4j-weaviate` | Docker (Java embedded mode does not exist) | ✅ | rejected |
 
-Decision pending — tracked separately.
+The decisive factor: Lucene serves **both** v0.1 (vector-only) **and** v0.2 (BM25+vector hybrid) from a single embedded library with a single index — no app-side RRF, no second store. The alternative two-store architecture (JVector + Lucene-sidecar + Reciprocal Rank Fusion) is technically interesting but adds an operational and conceptual layer for no functional gain in a Phase A CLI tool.
+
+### Pending validation
+
+A throughput benchmark on the target machine (M5 Pro, 48 GB) with the Apache Kafka `core/` corpus is scheduled for v0.1.x. If ingest or p95 query latency disappoint at 150k chunks × 768 dim, the fallback is `langchain4j-qdrant` (Docker sidecar in Phase A, managed cloud in Phase B).
 
 ## Quick start
 
