@@ -67,6 +67,26 @@ A throughput benchmark on the target machine (M5 Pro, 48 GB) with the Apache Kaf
 ./gradlew run
 ```
 
+## Running the integration tests
+
+Integration tests that hit a local Ollama (e.g. `OllamaLuceneSmokeIT`) are gated by the `RUN_OLLAMA_TESTS` env var so CI without Ollama stays green.
+
+Prerequisites:
+1. Ollama daemon running (`brew services start ollama`).
+2. Embedding model pulled: `ollama pull nomic-embed-text`.
+3. **Preload the model into GPU before running** to avoid first-call timeouts when other processes hold a different model:
+   ```bash
+   curl -s http://localhost:11434/api/embeddings \
+     -d '{"model": "nomic-embed-text", "prompt": "preload"}' > /dev/null
+   ollama ps   # should show nomic-embed-text
+   ```
+4. Run:
+   ```bash
+   RUN_OLLAMA_TESTS=true ./gradlew test
+   ```
+
+If Ollama hangs on a model swap (`ollama ps` shows another model stuck in `Stopping...`), restart the daemon: `brew services restart ollama`.
+
 ## Article series
 
 Each step within a milestone ships one article + matching commit. Article links land here as they go live.
