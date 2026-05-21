@@ -1,0 +1,35 @@
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Maven (in case)
+target/
+out/
+
+# IDE
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+.project
+.classpath
+.settings/
+
+# Java
+*.class
+hs_err_pid*
+replay_pid*
+
+# macOS
+.DS_Store
+
+# Karta-specific
+/data/
+/index/
+/.karta-cache/
+
+# Env / secrets
+.env
+.env.local
