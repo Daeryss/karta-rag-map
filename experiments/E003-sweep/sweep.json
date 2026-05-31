@@ -1,0 +1,31 @@
+{
+  "sweep_id" : "E003-sweep",
+  "environment" : {
+    "timestamp_iso" : "2026-05-31T17:24:24.127922Z",
+    "methodology" : "v0.3",
+    "karta_commit" : "0f3c127c4ec356bd8ecf9d7e589232843280233c",
+    "os" : "Mac OS X 26.4.1",
+    "os_arch" : "aarch64",
+    "jvm" : "Amazon.com Inc. 21.0.10",
+    "hardware_label" : "Apple M5 Pro, 48 GB RAM",
+    "ollama_version" : "0.18.3",
+    "embedding_model_digest" : "0a109f422b47e3a30ba2b10eca18548e944e8a23073ee3f3e947efcf3c45e59f"
+  },
+  "members" : [ {
+    "topK" : 10,
+    "experiment_id" : "E003-750-100",
+    "chunk_label" : "750/100"
+  }, {
+    "topK" : 10,
+    "experiment_id" : "E003-1500-200",
+    "chunk_label" : "1500/200"
+  }, {
+    "topK" : 10,
+    "experiment_id" : "E003-3000-300",
+    "chunk_label" : "3000/300"
+  }, {
+    "topK" : 10,
+    "experiment_id" : "E003-6000-500",
+    "chunk_label" : "6000/500"
+  } ]
+}

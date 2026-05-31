@@ -1,0 +1,20 @@
+# Pilot corpus — 10 hand-picked heavy-hitter files from Apache Kafka 4.0.0.
+# Retained as a labelled reference run only; full Kafka core/ ingest (E003b+)
+# is the production corpus going forward. See research-methodology.md@v0.3 §3.2.
+
+id:       kafka-4.0.0-pilot
+name:     "Apache Kafka 4.0.0 (10-file pilot slice)"
+tag:      "4.0.0"
+base_url: "https://raw.githubusercontent.com/apache/kafka/4.0.0/"
+
+files:
+  - clients/src/main/java/org/apache/kafka/clients/producer/KafkaProducer.java
+  - clients/src/main/java/org/apache/kafka/clients/consumer/KafkaConsumer.java
+  - clients/src/main/java/org/apache/kafka/clients/admin/KafkaAdminClient.java
+  - clients/src/main/java/org/apache/kafka/common/serialization/Serdes.java
+  - clients/src/main/java/org/apache/kafka/clients/CommonClientConfigs.java
+  - core/src/main/scala/kafka/log/UnifiedLog.scala
+  - core/src/main/scala/kafka/server/KafkaApis.scala
+  - core/src/main/scala/kafka/network/SocketServer.scala
+  - core/src/main/scala/kafka/coordinator/group/GroupCoordinator.scala
+  - core/src/main/scala/kafka/cluster/Replica.scala

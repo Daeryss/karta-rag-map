@@ -1,0 +1,42 @@
+# Pilot gold-query set for kafka-4.0.0-pilot corpus.
+# Three authored queries (one per shape). Q3 carries a disambiguation flag with a
+# Java/Scala cross-language pair so the new layer-1 metrics have something to chew on.
+#
+# n = 3 is below the methodology minimum (≥20 per corpus). This set exists only to
+# exercise the harness end-to-end; a full Kafka core/ gold-set is the next deliverable.
+
+corpus_id: kafka-4.0.0-pilot
+version:   "0.1"
+author:    "ilias.miftakhov"
+
+queries:
+
+  - id:    Q01
+    query: "How does a producer send records to Kafka?"
+    type:  direct_concept
+    expected:
+      - clients/src/main/java/org/apache/kafka/clients/producer/KafkaProducer.java
+    rationale: "KafkaProducer.send() implements the producer-side record submission protocol."
+    has_adversarial: false
+
+  - id:    Q02
+    query: "How are consumer group offsets coordinated?"
+    type:  cross_cutting
+    expected:
+      - clients/src/main/java/org/apache/kafka/clients/consumer/KafkaConsumer.java
+    rationale: "KafkaConsumer holds the client-side offset/commit logic in this pilot slice."
+    has_adversarial: false
+
+  - id:    Q03
+    query: "How does the broker accept and dispatch network connections?"
+    type:  behavioural
+    expected:
+      - core/src/main/scala/kafka/network/SocketServer.scala
+    rationale: "Broker-side accept/select loop and connection dispatch live in SocketServer."
+    has_adversarial: true
+    # Adversarial pair: KafkaAdminClient mentions network/connections heavily on the client
+    # side, and at small chunk sizes the embedding latches onto that lexical overlap rather
+    # than the broker-side Scala code that actually owns the responsibility.
+    adversarial:
+      - file: clients/src/main/java/org/apache/kafka/clients/admin/KafkaAdminClient.java
+        type: sibling

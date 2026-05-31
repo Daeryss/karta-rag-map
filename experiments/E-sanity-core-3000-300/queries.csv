@@ -1,0 +1,5 @@
+query_id,query,type,has_adversarial,expected,top1_file,top1_cosine,query_ms,top1_hit,recall_at_1,recall_at_3,recall_at_10,reciprocal_rank,adv_precision_pass,adv_rank_gap,adv_gap_by_type
+Q01,How does the broker accept and dispatch network connections?,BEHAVIOURAL,true,core/src/main/scala/kafka/network/SocketServer.scala,metadata/src/main/java/org/apache/kafka/metadata/ListenerInfo.java,0.5652,31,false,0.0000,0.0000,1.0000,0.1667,true,no_adv_retrieved,
+Q02,How is a Kafka log segment appended to and rolled?,DIRECT_CONCEPT,false,core/src/main/scala/kafka/log/UnifiedLog.scala,core/src/main/scala/kafka/log/UnifiedLog.scala,0.6408,13,true,1.0000,1.0000,1.0000,1.0000,,,
+Q03,How does the Raft client send and receive consensus messages?,BEHAVIOURAL,false,raft/src/main/java/org/apache/kafka/raft/KafkaRaftClient.java,core/src/main/java/kafka/server/share/SharePartitionManager.java,0.5969,14,false,0.0000,0.0000,1.0000,0.2000,,,
+Q04,How does log compaction remove duplicate keys?,DIRECT_CONCEPT,false,core/src/main/scala/kafka/log/LogCleaner.scala,core/src/main/scala/kafka/log/LogCleanerManager.scala,0.6334,13,false,0.0000,1.0000,1.0000,0.5000,,,

@@ -1,0 +1,11 @@
+rel_path,bytes,chunks,embed_ms,status
+clients/src/main/java/org/apache/kafka/clients/producer/KafkaProducer.java,90593,81,1019,ok
+clients/src/main/java/org/apache/kafka/clients/consumer/KafkaConsumer.java,114139,100,1313,ok
+clients/src/main/java/org/apache/kafka/clients/admin/KafkaAdminClient.java,251835,201,2178,ok
+clients/src/main/java/org/apache/kafka/common/serialization/Serdes.java,9084,7,98,ok
+clients/src/main/java/org/apache/kafka/clients/CommonClientConfigs.java,27969,27,339,ok
+core/src/main/scala/kafka/log/UnifiedLog.scala,108234,92,1036,ok
+core/src/main/scala/kafka/server/KafkaApis.scala,173273,154,1600,ok
+core/src/main/scala/kafka/network/SocketServer.scala,76835,68,769,ok
+core/src/main/scala/kafka/coordinator/group/GroupCoordinator.scala,82126,68,766,ok
+core/src/main/scala/kafka/cluster/Replica.scala,9529,9,105,ok

@@ -1,0 +1,68 @@
+E003 — Chunk-size sweep on Kafka 4.0.0 pilot slice
+====================================================
+
+Run timestamp:        2026-05-21 17:56:28 CEST  (40.41 s total)
+Karta commit:         0f3c127c4ec356bd8ecf9d7e589232843280233c
+Methodology:          research-methodology.md@v0.2
+Hardware:             Apple M5 Pro, 48 GB RAM
+OS:                   macOS 26.4.1 (build 25E253)
+JVM:                  Amazon Corretto 21
+Ollama:               0.18.3
+Embedding model:      nomic-embed-text:latest (num_ctx=2048, 768d)
+Vector store:         Apache Lucene 9.x via langchain4j-community-lucene:1.15.0-beta25
+Chunking:             Recursive char-window splitter (LangChain4j default)
+Corpus:               10 hand-picked files from apache/kafka@4.0.0, total 943,617 bytes
+
+--- per-config throughput ---
+cfg          chunks   skipped   embed_ms   ms/chunk
+750/100        1583         0      11580          7
+1500/200        807         0       9046         11
+3000/300        393         0       8374         21
+6000/500        190         0       9225         48
+
+--- per-query top-1 ---
+Q1: how does a producer send records to Kafka?
+  cfg         top-1 file                        cosine    correct?
+  750/100     KafkaProducer.java                0.6486    yes
+  1500/200    KafkaProducer.java                0.6167    yes
+  3000/300    KafkaProducer.java                0.6149    yes
+  6000/500    KafkaProducer.java                0.5998    yes
+
+Q2: how are consumer group offsets coordinated?
+  cfg         top-1 file                        cosine    correct?
+  750/100     KafkaConsumer.java                0.5909    yes
+  1500/200    KafkaConsumer.java                0.6003    yes
+  3000/300    KafkaConsumer.java                0.6093    yes
+  6000/500    CommonClientConfigs.java          0.5778    no
+
+Q3: how does the broker accept and dispatch network connections?
+  cfg         top-1 file                        cosine    correct?
+  750/100     KafkaProducer.java                0.5729    no
+  1500/200    KafkaAdminClient.java             0.5564    no
+  3000/300    SocketServer.scala                0.5668    yes
+  6000/500    SocketServer.scala                0.5722    yes
+
+--- observation ---
+3000/300 is the only configuration where all three authored queries return
+their expected top-1 file. Q1 (direct factual) is robust across all four
+configs but cosine score monotonically decreases with chunk size. Q2 (specific
+detail) accuracy collapses at 6000/500 — relevant signal is diluted by larger
+surrounding context. Q3 (cross-language conceptual, answer in Scala) misses at
+both <3000 configs and hits at ≥3000; the smaller-chunk failures return Java
+files (KafkaProducer.java, KafkaAdminClient.java) with cosine higher than the
+correct Scala file's cosine at larger configs — i.e. absolute cosine does not
+differentiate correctness, only within-config ranking does.
+
+Total embed wall-clock is U-shaped in chunk size: minimum at 3000/300 (8374 ms),
+1.38× speedup over 750/100 (11580 ms). Per-chunk cost rises roughly linearly with
+chunk size (7→11→21→48 ms), but total chunk count falls faster — fixed per-chunk
+overhead (HTTP round-trip, Lucene write) dominates at small chunks.
+
+This experiment locks Karta defaults v0.1.0 chunking at 3000/300.
+
+CAVEATS (per v0.2 §8 threats to validity):
+  * n = 3 authored queries, single author — not a gold query set.
+  * 10-file pilot slice, ~30K LOC, does not yet meet methodology §3.1
+    minimum of ≥100k LOC. Generalisation to full Kafka untested.
+  * Single embedding model (nomic-embed-text). U-shape may be model-specific.
+  * "By-eye" correctness assessment, not Recall@k against gold annotation.

@@ -1,0 +1,56 @@
+E001 — Whole-file embedding baseline on Kafka 4.0.0 pilot slice
+================================================================
+
+Run timestamp:        2026-05-31 18:12:30 CEST
+Karta commit:         0f3c127c4ec356bd8ecf9d7e589232843280233c
+Methodology:          research-methodology.md@v0.2
+Hardware:             Apple M5 Pro, 48 GB RAM
+OS:                   macOS 26.4.1 (build 25E253)
+JVM:                  Amazon Corretto 21
+Ollama:               0.18.3
+Embedding model:      nomic-embed-text:latest (digest 0a109f422b47, F16, 137M params)
+                      num_ctx = 2048
+Vector store:         Apache Lucene 9.x via langchain4j-community-lucene:1.15.0-beta25
+                      (ByteBuffersDirectory, in-memory)
+Corpus:               10 hand-picked files from apache/kafka@4.0.0, total 943,617 bytes
+                      5 Java from clients/, 5 Scala from core/
+
+--- ingest (whole-file embed) ---
+file                                               bytes     embed     status
+KafkaProducer.java                                 90593     129ms   OVER_CTX
+KafkaConsumer.java                                114139      21ms   OVER_CTX
+KafkaAdminClient.java                             251835      28ms   OVER_CTX
+Serdes.java                                         9084     149ms         ok
+CommonClientConfigs.java                           27969      24ms   OVER_CTX
+UnifiedLog.scala                                  108234      22ms   OVER_CTX
+KafkaApis.scala                                   173273      23ms   OVER_CTX
+SocketServer.scala                                 76835      15ms   OVER_CTX
+GroupCoordinator.scala                             82126      14ms   OVER_CTX
+Replica.scala                                       9529     113ms         ok
+
+totals: 10 files (indexed=2, over_ctx=8), 943617 bytes,
+embed=262 ms (mean 131 ms/indexed), vector dim=768
+
+--- queries (top-3, against 2-file index) ---
+Q (49ms): how does a producer send records to Kafka?
+  0.5041  Replica.scala
+  0.5033  Serdes.java
+Q (19ms): how are consumer group offsets coordinated?
+  0.4603  Replica.scala
+  0.4360  Serdes.java
+Q (14ms): how does the broker accept and dispatch network connections?
+  0.4789  Replica.scala
+  0.4726  Serdes.java
+
+--- observation ---
+8 / 10 files (~95% of corpus by bytes — 905 KB of 944 KB) rejected by Ollama with
+"input length exceeds the context length". Threshold sits between 9,529 bytes
+(Replica.scala — accepted) and 27,969 bytes (CommonClientConfigs.java — rejected),
+consistent with num_ctx=2048 tokens at ~3.5–4 chars/token on JVM source.
+
+Retrieval against the residual 2-file index is structurally broken — every query
+returns one of the two indexed files regardless of relevance. Cosine scores
+(0.40–0.51) reflect random-Scala-or-Java surface similarity, not semantic match.
+
+This is a *failure-mode* baseline, not an alternative configuration: it motivates
+chunking as a hard requirement, not an optimisation.

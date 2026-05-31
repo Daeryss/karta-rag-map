@@ -30,6 +30,9 @@ replay_pid*
 /index/
 /.karta-cache/
 
+# Auto-generated PDF previews of experiment outputs (local hook artifact, not source)
+experiments/**/*.pdf
+
 # Env / secrets
 .env
 .env.local

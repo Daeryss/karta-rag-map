@@ -1,0 +1,4 @@
+query_id,query,type,has_adversarial,expected,top1_file,top1_cosine,query_ms,top1_hit,recall_at_1,recall_at_3,recall_at_10,reciprocal_rank,adv_precision_pass,adv_rank_gap,adv_gap_by_type
+Q01,How does a producer send records to Kafka?,DIRECT_CONCEPT,false,clients/src/main/java/org/apache/kafka/clients/producer/KafkaProducer.java,clients/src/main/java/org/apache/kafka/clients/producer/KafkaProducer.java,0.6168,14,true,1.0000,1.0000,1.0000,1.0000,,,
+Q02,How are consumer group offsets coordinated?,CROSS_CUTTING,false,clients/src/main/java/org/apache/kafka/clients/consumer/KafkaConsumer.java,clients/src/main/java/org/apache/kafka/clients/consumer/KafkaConsumer.java,0.6201,14,true,1.0000,1.0000,1.0000,1.0000,,,
+Q03,How does the broker accept and dispatch network connections?,BEHAVIOURAL,true,core/src/main/scala/kafka/network/SocketServer.scala,core/src/main/scala/kafka/network/SocketServer.scala,0.5605,14,true,1.0000,1.0000,1.0000,1.0000,true,1,SIBLING=1

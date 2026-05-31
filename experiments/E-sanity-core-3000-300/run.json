@@ -1,0 +1,44 @@
+{
+  "environment" : {
+    "timestamp_iso" : "2026-05-31T18:01:05.848119Z",
+    "methodology" : "v0.3",
+    "karta_commit" : "0f3c127c4ec356bd8ecf9d7e589232843280233c",
+    "os" : "Mac OS X 26.4.1",
+    "os_arch" : "aarch64",
+    "jvm" : "Amazon.com Inc. 21.0.10",
+    "hardware_label" : "Apple M5 Pro, 48 GB RAM",
+    "ollama_version" : "0.18.3",
+    "embedding_model_digest" : "0a109f422b47e3a30ba2b10eca18548e944e8a23073ee3f3e947efcf3c45e59f"
+  },
+  "config" : {
+    "experimentId" : "E-sanity-core-3000-300",
+    "chunkChars" : 3000,
+    "overlapChars" : 300,
+    "wholeFile" : false,
+    "embeddingModel" : "nomic-embed-text",
+    "ollamaUrl" : "http://localhost:11434",
+    "topK" : 10
+  },
+  "ingest" : {
+    "files_attempted" : 697,
+    "files_indexed" : 697,
+    "files_skipped" : 0,
+    "total_bytes" : 6315518,
+    "total_chunks" : 2729,
+    "total_embed_ms" : 63314,
+    "vector_dim" : 768
+  },
+  "aggregate" : {
+    "queries" : 4,
+    "disambiguationQueries" : 1,
+    "meanRecallAt1" : 0.25,
+    "meanRecallAt3" : 0.5,
+    "meanRecallAt10" : 1.0,
+    "mrr" : 0.4666666666666667,
+    "topOneAccuracy" : 0.25,
+    "adversarialPrecision" : 1.0,
+    "meanRankGap" : "NaN",
+    "meanRankGapByType" : { },
+    "meanQueryLatencyMs" : 17
+  }
+}

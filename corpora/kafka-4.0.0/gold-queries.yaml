@@ -1,0 +1,600 @@
+# Gold query set for kafka-4.0.0-core (broker-side stack).
+# Targets ≥20 queries by methodology §4.1. Built incrementally; this file is a
+# work-in-progress until version "0.1" is stamped.
+#
+# Layout per query:
+#   id              — stable ID within the set (Q01, Q02, ...)
+#   query           — natural-language question, English
+#   type            — one of: direct_concept | cross_cutting | behavioural | anti_pattern
+#   expected        — one or more relative paths inside the corpus (must match CorpusLoader path format)
+#   rationale       — short prose explaining why expected files are the right answer
+#   has_adversarial — true when the corpus contains plausible-looking-but-wrong neighbours
+#   adversarial     — required when has_adversarial=true; each entry has {file, type}
+#                     types: interface | parent | child | mock | config | sibling
+#
+# Authorship is single-author (methodology §8 threat: query-authorship bias). External
+# contributions via PR are explicitly invited.
+
+corpus_id: kafka-4.0.0-core
+version:   "0.1.0"
+author:    "ilias.miftakhov"
+
+queries:
+
+  # ---------------------- BATCH 1 (broker fundamentals) ----------------------
+
+  - id:    Q01
+    query: "How does the broker accept incoming client TCP connections?"
+    type:  direct_concept
+    expected:
+      - core/src/main/scala/kafka/network/SocketServer.scala
+    rationale: |
+      SocketServer owns the acceptor/processor model: the Acceptor binds the listener
+      socket and dispatches accepted connections to a pool of Processor threads.
+      RequestChannel is the message-passing abstraction used between processors and
+      the request-handling layer — it is NOT where accepting happens.
+    has_adversarial: true
+    adversarial:
+      - file: core/src/main/scala/kafka/network/RequestChannel.scala
+        type: sibling   # peer in the same package, semantically the channel, not the accept loop
+
+  - id:    Q02
+    query: "How does Kafka deduplicate keys during log compaction?"
+    type:  direct_concept
+    expected:
+      - core/src/main/scala/kafka/log/LogCleaner.scala
+    rationale: |
+      LogCleaner implements the actual compaction algorithm: build offset-map from the
+      dirty section, then rewrite segments dropping superseded keys. LogCleanerManager
+      is the orchestrator that decides which partitions to clean and tracks state —
+      it does not contain the dedup algorithm itself.
+    has_adversarial: true
+    adversarial:
+      - file: core/src/main/scala/kafka/log/LogCleanerManager.scala
+        type: parent    # the manager that drives LogCleaner instances; broader scope, lexically very close
+
+  - id:    Q03
+    query: "How does a follower replica fetch records from the leader?"
+    type:  behavioural
+    expected:
+      - core/src/main/scala/kafka/server/ReplicaFetcherThread.scala
+    rationale: |
+      ReplicaFetcherThread is the concrete follower-side fetch loop for normal replication:
+      it builds FetchRequests, applies returned records to the local log, and advances HW.
+      AbstractFetcherThread is the shared base class for any fetcher (no replication
+      semantics on its own). ReplicaAlterLogDirsThread is a sibling fetcher used during
+      a log-directory move — same machinery, different purpose.
+    has_adversarial: true
+    adversarial:
+      - file: core/src/main/scala/kafka/server/AbstractFetcherThread.scala
+        type: parent
+      - file: core/src/main/scala/kafka/server/ReplicaAlterLogDirsThread.scala
+        type: sibling
+
+  - id:    Q04
+    query: "How does a Raft node decide to start a leader election?"
+    type:  behavioural
+    expected:
+      - raft/src/main/java/org/apache/kafka/raft/KafkaRaftClient.java
+    rationale: |
+      KafkaRaftClient is the main state machine: it owns the election timer, transitions
+      a follower to candidate when the timer fires, and broadcasts Vote requests. RaftClient
+      is the interface (no algorithm). ElectionState and LeaderState are data records for
+      transient state — they describe a state, they do not decide to enter it.
+    has_adversarial: true
+    adversarial:
+      - file: raft/src/main/java/org/apache/kafka/raft/RaftClient.java
+        type: interface
+      - file: raft/src/main/java/org/apache/kafka/raft/ElectionState.java
+        type: sibling   # state record bearing the right name but no behaviour
+      - file: raft/src/main/java/org/apache/kafka/raft/LeaderState.java
+        type: sibling
+
+  - id:    Q05
+    query: "How is broker metadata loaded from the KRaft log on startup?"
+    type:  cross_cutting
+    expected:
+      - metadata/src/main/java/org/apache/kafka/image/loader/MetadataLoader.java
+    rationale: |
+      MetadataLoader subscribes to the KRaft log, applies record batches to build a
+      MetadataImage on startup and on every delta, and notifies registered publishers.
+      MetadataBatchLoader is its helper that buffers and applies a single batch — not
+      the top-level loader.
+    has_adversarial: true
+    adversarial:
+      - file: metadata/src/main/java/org/apache/kafka/image/loader/MetadataBatchLoader.java
+        type: sibling   # helper inside the loader, narrower scope
+
+  # ---------------------- BATCH 2 (broker mechanics) ----------------------
+
+  - id:    Q06
+    query: "How does the broker coordinate consumer group membership and trigger rebalances?"
+    type:  cross_cutting
+    expected:
+      - core/src/main/scala/kafka/coordinator/group/GroupCoordinator.scala
+    rationale: |
+      GroupCoordinator owns the join/sync/heartbeat protocol and decides when a group
+      enters PreparingRebalance. GroupMetadataManager persists the resulting state to
+      __consumer_offsets — important but not the coordinator logic. GroupCoordinatorAdapter
+      is the bridge to the newer Java group coordinator (different impl, same interface).
+      TransactionCoordinator is a peer coordinator for a different domain entirely.
+    has_adversarial: true
+    adversarial:
+      - file: core/src/main/scala/kafka/coordinator/group/GroupMetadataManager.scala
+        type: sibling   # persistence layer for the same domain
+      - file: core/src/main/scala/kafka/coordinator/group/GroupCoordinatorAdapter.scala
+        type: sibling   # adapter to alternative impl
+      - file: core/src/main/scala/kafka/coordinator/transaction/TransactionCoordinator.scala
+        type: sibling   # coordinator role, different domain
+
+  - id:    Q07
+    query: "How does the broker manage a transaction's lifecycle from Begin to Prepare to Commit?"
+    type:  behavioural
+    expected:
+      - core/src/main/scala/kafka/coordinator/transaction/TransactionCoordinator.scala
+    rationale: |
+      TransactionCoordinator drives the transaction state machine: handles InitProducerId,
+      AddPartitionsToTxn, and EndTxn requests, and orchestrates marker writes across
+      partitions. TransactionStateManager owns the persistence of TransactionMetadata
+      to __transaction_state — adjacent storage layer, not the lifecycle logic.
+      TransactionLog defines the record format. TransactionMetadata is a data record.
+    has_adversarial: true
+    adversarial:
+      - file: core/src/main/scala/kafka/coordinator/transaction/TransactionStateManager.scala
+        type: sibling   # persistence/state cache, not the protocol driver
+      - file: core/src/main/scala/kafka/coordinator/transaction/TransactionLog.scala
+        type: sibling   # record format only
+      - file: core/src/main/scala/kafka/coordinator/transaction/TransactionMetadata.scala
+        type: sibling   # data record only
+
+  - id:    Q08
+    query: "How does a partition leader track its in-sync replica set and advance the high watermark?"
+    type:  behavioural
+    expected:
+      - core/src/main/scala/kafka/cluster/Partition.scala
+    rationale: |
+      Partition owns the ISR transitions (shrinkIsr/expandIsr) and the high-watermark
+      advance logic that runs on every fetch/produce that updates replica state.
+      Replica is the per-replica state struct (LEO, lastFetchTime) that Partition reads
+      from. ReplicaManager is the broker-level container that owns all Partitions and
+      handles cross-cutting concerns (fetch/produce routing), but it does not own the
+      ISR/HW math.
+    has_adversarial: true
+    adversarial:
+      - file: core/src/main/scala/kafka/cluster/Replica.scala
+        type: sibling   # per-replica struct; Partition aggregates these
+      - file: core/src/main/scala/kafka/server/ReplicaManager.scala
+        type: parent    # broker-level manager owning all Partitions
+
+  - id:    Q09
+    query: "Where does the broker dispatch each incoming protocol request to its handler?"
+    type:  cross_cutting
+    expected:
+      - core/src/main/scala/kafka/server/KafkaApis.scala
+    rationale: |
+      KafkaApis is the giant dispatch switch: takes a RequestChannel.Request, matches its
+      ApiKey, and invokes the corresponding handle*Request method (Produce, Fetch, Metadata, ...).
+      ControllerApis is the peer dispatcher on the controller side — same role for a
+      different request surface, will look very similar by embedding. KafkaRequestHandler
+      is one layer below (the IO-thread that pulls from the request queue). RequestChannel
+      is the message-passing primitive, not the dispatcher.
+    has_adversarial: true
+    adversarial:
+      - file: core/src/main/scala/kafka/server/ControllerApis.scala
+        type: sibling   # same dispatch shape, different surface
+      - file: core/src/main/scala/kafka/server/KafkaRequestHandler.scala
+        type: sibling   # IO-thread layer below KafkaApis
+      - file: core/src/main/scala/kafka/network/RequestChannel.scala
+        type: sibling   # message-passing primitive
+
+  - id:    Q10
+    query: "How is a KRaft metadata snapshot generated from the current metadata image?"
+    type:  direct_concept
+    expected:
+      - metadata/src/main/java/org/apache/kafka/image/publisher/SnapshotGenerator.java
+    rationale: |
+      SnapshotGenerator decides when a snapshot is due (bytes/records since last snapshot)
+      and drives the generation: walks the MetadataImage, writes records via a writer.
+      SnapshotEmitter is its peer that pushes the resulting snapshot to disk/Raft.
+      RaftSnapshotWriter is the image-layer adapter to the Raft snapshot machinery.
+      RecordsSnapshotWriter is the lower-level Raft snapshot writer in the raft module.
+    has_adversarial: true
+    adversarial:
+      - file: metadata/src/main/java/org/apache/kafka/image/publisher/SnapshotEmitter.java
+        type: sibling   # downstream peer in the same publisher package
+      - file: metadata/src/main/java/org/apache/kafka/image/writer/RaftSnapshotWriter.java
+        type: sibling   # adjacent writer abstraction
+      - file: raft/src/main/java/org/apache/kafka/snapshot/RecordsSnapshotWriter.java
+        type: sibling   # raft-layer writer; different module, similar name
+
+  # ---------------------- BATCH 3 (retention, startup, idempotence, anti-patterns) ----------------------
+
+  - id:    Q11
+    query: "How does the broker periodically clean up logs based on retention policy?"
+    type:  behavioural
+    expected:
+      - core/src/main/scala/kafka/log/LogManager.scala
+    rationale: |
+      LogManager schedules and drives the retention scheduler: it iterates all UnifiedLogs
+      on its scheduler thread and calls into them to delete segments by age/size. LogCleaner
+      is the COMPACTION cleaner — a different cleanup mode (dedup by key) and a different
+      pair of threads. UnifiedLog owns the per-log deleteOldSegments primitive that
+      LogManager calls — adjacent but not the orchestrator.
+    has_adversarial: true
+    adversarial:
+      - file: core/src/main/scala/kafka/log/LogCleaner.scala
+        type: sibling   # different cleanup mode (compaction, not retention)
+      - file: core/src/main/scala/kafka/log/UnifiedLog.scala
+        type: child     # per-log executor that LogManager schedules
+
+  - id:    Q12
+    query: "How is a Kafka broker server initialized and started up with all its components?"
+    type:  cross_cutting
+    expected:
+      - core/src/main/scala/kafka/server/BrokerServer.scala
+    rationale: |
+      BrokerServer is the assembly point for a process running as a broker: it wires up
+      the SocketServer, ReplicaManager, GroupCoordinator, MetadataCache, and the request-
+      handling thread pool. ControllerServer is the analogous assembly point for a process
+      running as a KRaft controller. KafkaRaftServer is the top-level process that owns
+      both BrokerServer and ControllerServer in combined-mode deployments. SharedServer
+      hosts the components both roles need (Raft client, metadata loader).
+    has_adversarial: true
+    adversarial:
+      - file: core/src/main/scala/kafka/server/ControllerServer.scala
+        type: sibling   # the controller-role peer
+      - file: core/src/main/scala/kafka/server/KafkaRaftServer.scala
+        type: parent    # outer process that contains BrokerServer
+      - file: core/src/main/scala/kafka/server/SharedServer.scala
+        type: sibling   # shared component bag, not the broker assembly
+
+  - id:    Q13
+    query: "How does the broker detect duplicate batches from an idempotent producer?"
+    type:  behavioural
+    expected:
+      - storage/src/main/java/org/apache/kafka/storage/internals/log/ProducerStateManager.java
+    rationale: |
+      ProducerStateManager keeps the producer-id → last-seen-sequence map per partition
+      and rejects appends whose sequence numbers are out of order or duplicated. It is
+      the dedup brain. ProducerStateEntry is a single producer's record inside that map
+      (data, not algorithm). ProducerAppendInfo is the temporary per-append accumulator.
+      LogValidator runs upstream and performs sequence sanity checks at validation time
+      but does not own the cross-batch dedup state.
+    has_adversarial: true
+    adversarial:
+      - file: storage/src/main/java/org/apache/kafka/storage/internals/log/ProducerStateEntry.java
+        type: sibling   # one producer's record — a data class
+      - file: storage/src/main/java/org/apache/kafka/storage/internals/log/ProducerAppendInfo.java
+        type: sibling   # temporary append-time accumulator
+      - file: storage/src/main/java/org/apache/kafka/storage/internals/log/LogValidator.java
+        type: sibling   # upstream validation layer, narrower scope
+
+  - id:    Q14
+    query: "How does Kafka guarantee exactly-once delivery for stream-processing applications?"
+    type:  anti_pattern
+    expected:
+      - core/src/main/scala/kafka/coordinator/transaction/TransactionCoordinator.scala
+      - storage/src/main/java/org/apache/kafka/storage/internals/log/ProducerStateManager.java
+      - storage/src/main/java/org/apache/kafka/storage/internals/log/LogValidator.java
+      - core/src/main/scala/kafka/coordinator/transaction/TransactionMarkerChannelManager.scala
+    rationale: |
+      Phrasing sounds like a single-feature question, but there is no one file that
+      implements "exactly-once." The broker-side answer is the intersection of four
+      mechanisms: (a) the transactional state machine in TransactionCoordinator
+      (Begin/AddPartitions/EndTxn protocol); (b) idempotent-producer dedup in
+      ProducerStateManager; (c) per-batch sequence validation in LogValidator;
+      (d) atomic marker writes across partitions via TransactionMarkerChannelManager.
+      A reader expecting one canonical class will end up wrong regardless of which
+      one they pick first. The metric for this query is Recall@k (do all four show up
+      in the top-k together), not top-1.
+    has_adversarial: false
+
+  - id:    Q15
+    query: "Where in the broker is authentication and authorization implemented?"
+    type:  anti_pattern
+    expected:
+      - core/src/main/scala/kafka/server/AclApis.scala
+      - core/src/main/scala/kafka/server/AuthHelper.scala
+      - core/src/main/scala/kafka/server/DelegationTokenManager.scala
+      - core/src/main/scala/kafka/server/metadata/AclPublisher.scala
+      - core/src/main/scala/kafka/server/metadata/ScramPublisher.scala
+      - core/src/main/scala/kafka/server/metadata/DelegationTokenPublisher.scala
+    rationale: |
+      Authn/authz on the broker is not a single subsystem. Authorisation request handling
+      lives in AclApis. Cross-cutting helper logic for permission checks across handlers
+      lives in AuthHelper. Delegation-token issuance/management has its own manager.
+      ACL/SCRAM/token state updates from the metadata log are published by three separate
+      *Publisher* classes in server/metadata/. A reader who picks a single file will miss
+      most of the system. Like Q14, the right metric is Recall@k across all six, not top-1.
+    has_adversarial: false
+
+  # ---------------------- BATCH 4 (config adversarials, balance to ≥20) ----------------------
+
+  - id:    Q16
+    query: "How does the broker cache an incremental fetch session between consumer requests?"
+    type:  direct_concept
+    expected:
+      - core/src/main/scala/kafka/server/FetchSession.scala
+    rationale: |
+      FetchSession owns the per-session cache that lets a consumer or follower send
+      partition deltas instead of the full subscription list on every fetch. KafkaConfig
+      defines fetch-related parameters (max bytes, session size) but does not implement
+      the caching itself — classic config-vs-implementation pair. KafkaApis dispatches
+      to the session upstream.
+    has_adversarial: true
+    adversarial:
+      - file: core/src/main/scala/kafka/server/KafkaConfig.scala
+        type: config    # documents fetch settings, no caching logic
+      - file: core/src/main/scala/kafka/server/KafkaApis.scala
+        type: sibling   # upstream dispatch, calls into FetchSession
+
+  - id:    Q17
+    query: "How does the Raft layer represent the current set of voters in the cluster?"
+    type:  direct_concept
+    expected:
+      - raft/src/main/java/org/apache/kafka/raft/VoterSet.java
+    rationale: |
+      VoterSet is the immutable record of the current voter membership at a given epoch.
+      VoterSetHistory tracks how that set has changed over time — adjacent sibling,
+      different scope. QuorumState is the broader Raft state (term, vote, leader id);
+      it contains a reference to VoterSet but is not itself the voter representation.
+      QuorumStateStore is the on-disk persistence layer.
+    has_adversarial: true
+    adversarial:
+      - file: raft/src/main/java/org/apache/kafka/raft/internals/VoterSetHistory.java
+        type: sibling   # historical sets, not the current one
+      - file: raft/src/main/java/org/apache/kafka/raft/QuorumState.java
+        type: parent    # broader state record that contains a VoterSet
+      - file: raft/src/main/java/org/apache/kafka/raft/QuorumStateStore.java
+        type: sibling   # persistence layer for QuorumState
+
+  - id:    Q18
+    query: "How does an incoming Produce request flow through the broker from the network thread to the log?"
+    type:  cross_cutting
+    expected:
+      - core/src/main/scala/kafka/server/ReplicaManager.scala
+    rationale: |
+      ReplicaManager.appendRecords is the central pivot on the Produce path: it validates,
+      replicates, and writes to the underlying logs through Partition. SocketServer accepts
+      the connection upstream; KafkaApis dispatches handleProduceRequest into ReplicaManager;
+      UnifiedLog is the downstream sink that ReplicaManager calls into. All four sit on the
+      same request path but only ReplicaManager owns the per-request orchestration.
+    has_adversarial: true
+    adversarial:
+      - file: core/src/main/scala/kafka/server/KafkaApis.scala
+        type: sibling   # upstream dispatch
+      - file: core/src/main/scala/kafka/network/SocketServer.scala
+        type: sibling   # network acceptor layer, further upstream
+      - file: core/src/main/scala/kafka/log/UnifiedLog.scala
+        type: sibling   # downstream sink
+
+  - id:    Q19
+    query: "How does the broker rate-limit individual clients exceeding their configured quota?"
+    type:  cross_cutting
+    expected:
+      - core/src/main/scala/kafka/server/ClientQuotaManager.scala
+    rationale: |
+      ClientQuotaManager owns the per-client token-bucket accounting and the throttle
+      delay calculation that gets attached to the response. ControllerMutationQuotaManager
+      is the peer for controller mutation requests — different request surface, same
+      machinery shape. DynamicConfig holds the quota values as parsed config — adjacent
+      config layer, not the enforcement engine.
+    has_adversarial: true
+    adversarial:
+      - file: core/src/main/scala/kafka/server/ControllerMutationQuotaManager.scala
+        type: sibling   # quota engine for a different surface
+      - file: core/src/main/scala/kafka/server/DynamicConfig.scala
+        type: config    # quota values as config
+
+  - id:    Q20
+    query: "How is a single log segment file structured on disk and accessed by the broker?"
+    type:  direct_concept
+    expected:
+      - storage/src/main/java/org/apache/kafka/storage/internals/log/LogSegment.java
+    rationale: |
+      LogSegment models the physical segment: it owns the FileRecords, the time and
+      offset indexes, and the read/append entrypoints. LogConfig parses segment-related
+      settings (segment bytes, roll ms, index interval) but does not describe the layout.
+      LogFileUtils is a static helper for filename and path parsing — peer utility,
+      not the segment itself.
+    has_adversarial: true
+    adversarial:
+      - file: storage/src/main/java/org/apache/kafka/storage/internals/log/LogConfig.java
+        type: config    # configures segment behaviour, not the layout
+      - file: storage/src/main/java/org/apache/kafka/storage/internals/log/LogFileUtils.java
+        type: sibling   # filename / path helpers
+
+  # ---------------------- BATCH 5 (push to 30: controller, purgatory, recovery, etc.) ----------------------
+
+  - id:    Q21
+    query: "How does the KRaft controller handle a topic-creation request and persist it to the metadata log?"
+    type:  cross_cutting
+    expected:
+      - metadata/src/main/java/org/apache/kafka/controller/QuorumController.java
+    rationale: |
+      QuorumController is the concrete KRaft controller: it owns the event queue,
+      validates each control request, and writes the resulting records to the metadata
+      partition via the Raft client. Controller is the abstract interface that callers
+      use — algorithm-free. ControllerApis is the broker-side dispatcher that turns
+      AdminClient requests into Controller calls. ControllerServer is the process wrapper.
+    has_adversarial: true
+    adversarial:
+      - file: metadata/src/main/java/org/apache/kafka/controller/Controller.java
+        type: interface     # the abstract API — no implementation
+      - file: core/src/main/scala/kafka/server/ControllerApis.scala
+        type: sibling       # broker-side dispatch into Controller
+      - file: core/src/main/scala/kafka/server/ControllerServer.scala
+        type: sibling       # process wrapper, not the algorithm
+
+  - id:    Q22
+    query: "How does the broker delay a Produce request until enough replicas have acknowledged?"
+    type:  direct_concept
+    expected:
+      - core/src/main/scala/kafka/server/DelayedProduce.scala
+    rationale: |
+      DelayedProduce is the purgatory entry placed on the produce response when acks>1:
+      it owns the per-request acknowledgment state and the completion check that runs on
+      every replica HW advance. DelayedFetch is the peer for the Fetch path. DelayedRebalance
+      is a sibling in coordinator/group/ — same purgatory mechanics, totally different
+      domain. DelayedRemoteFetch is the tiered-storage variant.
+    has_adversarial: true
+    adversarial:
+      - file: core/src/main/scala/kafka/server/DelayedFetch.scala
+        type: sibling       # same purgatory machinery, fetch direction
+      - file: core/src/main/scala/kafka/coordinator/group/DelayedRebalance.scala
+        type: sibling       # same shape, different domain
+      - file: core/src/main/scala/kafka/server/DelayedRemoteFetch.scala
+        type: sibling       # tiered-storage variant
+
+  - id:    Q23
+    query: "How does the broker recover its log state from disk on startup?"
+    type:  direct_concept
+    expected:
+      - storage/src/main/java/org/apache/kafka/storage/internals/log/LogLoader.java
+    rationale: |
+      LogLoader is the per-log recovery routine: it scans segment files, replays
+      producer state, and rebuilds the offset/time indexes. LocalLog is the low-level
+      segment container that LogLoader populates. UnifiedLog is the outer abstraction
+      that owns a fully-loaded log after recovery completes. LogManager schedules the
+      recovery at startup but does not implement it.
+    has_adversarial: true
+    adversarial:
+      - file: storage/src/main/java/org/apache/kafka/storage/internals/log/LocalLog.java
+        type: sibling       # segment container LogLoader fills in
+      - file: core/src/main/scala/kafka/log/UnifiedLog.scala
+        type: sibling       # outer log abstraction
+      - file: core/src/main/scala/kafka/log/LogManager.scala
+        type: parent        # orchestrates recovery across all logs
+
+  - id:    Q24
+    query: "How does the broker apply a record batch to update its in-memory metadata image?"
+    type:  behavioural
+    expected:
+      - metadata/src/main/java/org/apache/kafka/image/MetadataDelta.java
+    rationale: |
+      MetadataDelta accumulates the per-subsystem deltas (TopicsDelta, AclsDelta,
+      ConfigurationsDelta, ...) from a new batch of records and applies them against
+      the current MetadataImage to produce the next image. MetadataImage is the
+      immutable snapshot — the result of delta apply, not the apply logic. MetadataBatchLoader
+      is the caller that buffers batches and invokes MetadataDelta.
+    has_adversarial: true
+    adversarial:
+      - file: metadata/src/main/java/org/apache/kafka/image/MetadataImage.java
+        type: sibling       # the result, not the apply
+      - file: metadata/src/main/java/org/apache/kafka/image/loader/MetadataBatchLoader.java
+        type: parent        # caller that drives delta apply
+
+  - id:    Q25
+    query: "How does the broker manage the pool of fetcher threads pulling from leader replicas?"
+    type:  direct_concept
+    expected:
+      - core/src/main/scala/kafka/server/ReplicaFetcherManager.scala
+    rationale: |
+      ReplicaFetcherManager owns the pool: it decides when a partition needs a new
+      fetcher, picks the fetcher thread (by partition-id hash), and handles add/remove
+      under leadership changes. AbstractFetcherManager is the generic base class for
+      both replica fetchers and log-dir-move fetchers. ReplicaFetcherThread is the
+      child worker, not the pool. ReplicaAlterLogDirsManager is the sibling manager
+      for log-dir moves.
+    has_adversarial: true
+    adversarial:
+      - file: core/src/main/scala/kafka/server/AbstractFetcherManager.scala
+        type: parent        # base class
+      - file: core/src/main/scala/kafka/server/ReplicaFetcherThread.scala
+        type: child         # individual worker
+      - file: core/src/main/scala/kafka/server/ReplicaAlterLogDirsManager.scala
+        type: sibling       # peer manager for a different fetch purpose
+
+  - id:    Q26
+    query: "How does the broker negotiate API versions with a connecting client?"
+    type:  behavioural
+    expected:
+      - core/src/main/scala/kafka/server/ApiVersionManager.scala
+    rationale: |
+      ApiVersionManager builds the ApiVersionsResponse for a given listener and feature
+      level: it intersects the broker's supported versions with finalized feature levels
+      and serves the result on every ApiVersionsRequest. KafkaApis.handleApiVersionsRequest
+      is the upstream dispatcher that calls into ApiVersionManager. KafkaConfig contains
+      version-related settings but does not implement negotiation.
+    has_adversarial: true
+    adversarial:
+      - file: core/src/main/scala/kafka/server/KafkaApis.scala
+        type: sibling       # upstream dispatcher
+      - file: core/src/main/scala/kafka/server/KafkaConfig.scala
+        type: config        # version-related settings
+
+  - id:    Q27
+    query: "How are metadata-image updates broadcast to interested broker components?"
+    type:  cross_cutting
+    expected:
+      - core/src/main/scala/kafka/server/metadata/BrokerMetadataPublisher.scala
+    rationale: |
+      BrokerMetadataPublisher is the broker-side aggregator publisher: it receives each
+      new MetadataImage from the loader and fans out to topic/partition handlers,
+      ReplicaManager, GroupCoordinator, and the dynamic-config / ACL / SCRAM publishers.
+      MetadataPublisher is the generic interface every publisher implements. AclPublisher
+      and ScramPublisher are sibling publishers for specific subsystems (ACL state and
+      SCRAM credentials).
+    has_adversarial: true
+    adversarial:
+      - file: metadata/src/main/java/org/apache/kafka/image/publisher/MetadataPublisher.java
+        type: interface     # the abstract subscription contract
+      - file: core/src/main/scala/kafka/server/metadata/AclPublisher.scala
+        type: sibling       # one specific subscriber
+      - file: core/src/main/scala/kafka/server/metadata/ScramPublisher.scala
+        type: sibling       # another specific subscriber
+
+  - id:    Q28
+    query: "How does a Kafka broker gracefully shut down all its components?"
+    type:  anti_pattern
+    expected:
+      - core/src/main/scala/kafka/server/BrokerServer.scala
+      - core/src/main/scala/kafka/server/ReplicaManager.scala
+      - core/src/main/scala/kafka/log/LogManager.scala
+      - core/src/main/scala/kafka/coordinator/group/GroupCoordinator.scala
+      - core/src/main/scala/kafka/network/SocketServer.scala
+    rationale: |
+      There is no single "shutdown class." Each subsystem (network acceptor, replica
+      manager, log manager, group coordinator, transaction coordinator, etc.) owns its
+      own shutdown method, and BrokerServer.shutdown is the orchestrator that calls
+      them in a specific order. A reader who searches for "graceful shutdown" expecting
+      one canonical implementation will find five plausible files and need all five
+      together to understand the sequence. Recall@k across all five is the right metric.
+    has_adversarial: false
+
+  - id:    Q29
+    query: "What happens inside a partition object when the controller assigns it a new leader?"
+    type:  behavioural
+    expected:
+      - core/src/main/scala/kafka/cluster/Partition.scala
+    rationale: |
+      Partition.makeLeader / makeFollower contain the leadership-change handlers: they
+      reset the leader-epoch, reinitialize the HW, set up fetcher subscriptions, and
+      notify the replica manager. DelayedElectLeader is the purgatory entry for a
+      pending leader-election request — peer in flow but not where leadership actually
+      changes. ReplicaManager.becomeLeaderOrFollower is the broker-level entry point
+      that calls Partition; it owns coordination across partitions, not the per-partition
+      state transition.
+    has_adversarial: true
+    adversarial:
+      - file: core/src/main/scala/kafka/server/DelayedElectLeader.scala
+        type: sibling       # purgatory entry for elect-leader requests
+      - file: core/src/main/scala/kafka/server/ReplicaManager.scala
+        type: parent        # broker-level orchestrator
+
+  - id:    Q30
+    query: "What information does the broker store to identify a single log offset within a segment?"
+    type:  direct_concept
+    expected:
+      - storage/src/main/java/org/apache/kafka/storage/internals/log/LogOffsetMetadata.java
+    rationale: |
+      LogOffsetMetadata is the triple (messageOffset, segmentBaseOffset, relativePosition)
+      that locates an offset within a specific segment's byte stream. LogAppendInfo and
+      LogReadInfo are the per-operation result records that contain LogOffsetMetadata
+      but represent operations, not the offset identity itself.
+    has_adversarial: true
+    adversarial:
+      - file: storage/src/main/java/org/apache/kafka/storage/internals/log/LogAppendInfo.java
+        type: sibling       # append-operation result containing offset info
+      - file: storage/src/main/java/org/apache/kafka/storage/internals/log/LogReadInfo.java
+        type: sibling       # read-operation result containing offset info

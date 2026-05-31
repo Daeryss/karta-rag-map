@@ -1,0 +1,51 @@
+# SANITY-TEST gold queries for kafka-4.0.0-core corpus.
+# Not the final gold-set — these 4 queries exist only to verify that the
+# parameterised harness scales from the 10-file pilot to the full 697-file
+# broker corpus without breaking. The real ≥20-query gold-set is a separate
+# deliverable.
+#
+# Coverage: 4 queries spanning broker network, log storage, log compaction,
+# and Raft consensus. One disambiguation pair (Q01: SocketServer vs
+# RequestChannel — accept loop vs channel abstraction) to exercise the
+# new layer-1 adversarial metrics on a realistic close pair.
+
+corpus_id: kafka-4.0.0-core
+version:   "sanity-0.1"
+author:    "ilias.miftakhov"
+
+queries:
+
+  - id:    Q01
+    query: "How does the broker accept and dispatch network connections?"
+    type:  behavioural
+    expected:
+      - core/src/main/scala/kafka/network/SocketServer.scala
+    rationale: "Accept loop, Processor threads, and connection dispatch live in SocketServer."
+    has_adversarial: true
+    adversarial:
+      - file: core/src/main/scala/kafka/network/RequestChannel.scala
+        type: sibling   # peer abstraction in the same package — channel object, not the accept loop
+
+  - id:    Q02
+    query: "How is a Kafka log segment appended to and rolled?"
+    type:  direct_concept
+    expected:
+      - core/src/main/scala/kafka/log/UnifiedLog.scala
+    rationale: "UnifiedLog owns append + roll semantics for a single partition log."
+    has_adversarial: false
+
+  - id:    Q03
+    query: "How does the Raft client send and receive consensus messages?"
+    type:  behavioural
+    expected:
+      - raft/src/main/java/org/apache/kafka/raft/KafkaRaftClient.java
+    rationale: "KafkaRaftClient is the main client-side Raft state machine and message handler."
+    has_adversarial: false
+
+  - id:    Q04
+    query: "How does log compaction remove duplicate keys?"
+    type:  direct_concept
+    expected:
+      - core/src/main/scala/kafka/log/LogCleaner.scala
+    rationale: "LogCleaner implements the dedup-by-key compaction algorithm."
+    has_adversarial: false

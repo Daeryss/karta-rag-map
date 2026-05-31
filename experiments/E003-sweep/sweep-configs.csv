@@ -1,0 +1,5 @@
+experiment_id,chunk_label,whole_file,chunk_chars,overlap_chars,files_indexed,files_skipped,chunks,embed_ms,ms_per_chunk,top1_accuracy,recall_at_1,recall_at_3,recall_at_10,mrr,disambig_queries,adv_precision,mean_rank_gap,query_ms_mean
+E003-750-100,750/100,false,750,100,10,0,1583,11556,7,1.0000,1.0000,1.0000,1.0000,1.0000,1,1.0000,2.0000,25
+E003-1500-200,1500/200,false,1500,200,10,0,807,9223,11,0.3333,0.3333,1.0000,1.0000,0.6667,1,1.0000,1.0000,15
+E003-3000-300,3000/300,false,3000,300,10,0,393,8585,21,1.0000,1.0000,1.0000,1.0000,1.0000,1,1.0000,1.0000,14
+E003-6000-500,6000/500,false,6000,500,10,0,190,10032,52,0.6667,0.6667,1.0000,1.0000,0.8333,1,1.0000,2.0000,13

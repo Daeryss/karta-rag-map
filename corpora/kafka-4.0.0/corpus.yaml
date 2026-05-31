@@ -1,0 +1,37 @@
+# Full Apache Kafka 4.0.0 broker-side corpus.
+# Spans the broker runtime (Scala, in core/) plus the Java-side broker support
+# modules (server, server-common, raft, storage, metadata).  Excludes:
+#   - clients/         — client-side API, large (176K LOC) and would dominate; separate corpus when needed
+#   - streams/         — separate product
+#   - tools, trogdor, jmh-benchmarks, examples, generator, shell — auxiliaries
+#   - **/test/**, **/build/**     — non-production
+#
+# This corpus satisfies methodology §3.1 (≥100K LOC) and preserves the multilingual
+# JVM angle: ~21% Scala (broker runtime concentrated in core/), ~79% Java (rest
+# of the broker-side stack).
+#
+# Reproduction:
+#   git clone --depth 1 --branch 4.0.0 https://github.com/apache/kafka.git <path>
+#   export KAFKA_4_0_0_PATH=<path>
+#   ./gradlew test --tests '...full corpus test...'
+#
+# See research-methodology.md@v0.3 §3.2.
+
+id:        kafka-4.0.0-core
+name:      "Apache Kafka 4.0.0 (broker-side: core + server + server-common + raft + storage + metadata)"
+tag:       "4.0.0"
+base_path: "${env:KAFKA_4_0_0_PATH}"
+
+include:
+  - "core/src/main/**/*.scala"
+  - "core/src/main/**/*.java"
+  - "server/src/main/**/*.java"
+  - "server-common/src/main/**/*.java"
+  - "raft/src/main/**/*.java"
+  - "storage/src/main/**/*.java"
+  - "metadata/src/main/**/*.java"
+
+exclude:
+  - "**/test/**"
+  - "**/build/**"
+  - "**/generated/**"

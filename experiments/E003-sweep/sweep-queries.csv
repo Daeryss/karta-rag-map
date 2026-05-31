@@ -1,0 +1,13 @@
+experiment_id,chunk_label,query_id,query_type,has_adversarial,top1_file,top1_cosine,top1_hit,recall_at_1,recall_at_3,recall_at_10,reciprocal_rank,adv_precision_pass,adv_rank_gap
+E003-750-100,750/100,Q01,DIRECT_CONCEPT,false,clients/src/main/java/org/apache/kafka/clients/producer/KafkaProducer.java,0.6469,true,1.0000,1.0000,1.0000,1.0000,,
+E003-750-100,750/100,Q02,CROSS_CUTTING,false,clients/src/main/java/org/apache/kafka/clients/consumer/KafkaConsumer.java,0.6660,true,1.0000,1.0000,1.0000,1.0000,,
+E003-750-100,750/100,Q03,BEHAVIOURAL,true,core/src/main/scala/kafka/network/SocketServer.scala,0.6068,true,1.0000,1.0000,1.0000,1.0000,true,2
+E003-1500-200,1500/200,Q01,DIRECT_CONCEPT,false,clients/src/main/java/org/apache/kafka/clients/producer/KafkaProducer.java,0.6311,true,1.0000,1.0000,1.0000,1.0000,,
+E003-1500-200,1500/200,Q02,CROSS_CUTTING,false,clients/src/main/java/org/apache/kafka/clients/producer/KafkaProducer.java,0.6205,false,0.0000,1.0000,1.0000,0.5000,,
+E003-1500-200,1500/200,Q03,BEHAVIOURAL,true,clients/src/main/java/org/apache/kafka/clients/producer/KafkaProducer.java,0.5921,false,0.0000,1.0000,1.0000,0.5000,true,1
+E003-3000-300,3000/300,Q01,DIRECT_CONCEPT,false,clients/src/main/java/org/apache/kafka/clients/producer/KafkaProducer.java,0.6168,true,1.0000,1.0000,1.0000,1.0000,,
+E003-3000-300,3000/300,Q02,CROSS_CUTTING,false,clients/src/main/java/org/apache/kafka/clients/consumer/KafkaConsumer.java,0.6201,true,1.0000,1.0000,1.0000,1.0000,,
+E003-3000-300,3000/300,Q03,BEHAVIOURAL,true,core/src/main/scala/kafka/network/SocketServer.scala,0.5605,true,1.0000,1.0000,1.0000,1.0000,true,1
+E003-6000-500,6000/500,Q01,DIRECT_CONCEPT,false,clients/src/main/java/org/apache/kafka/clients/producer/KafkaProducer.java,0.6022,true,1.0000,1.0000,1.0000,1.0000,,
+E003-6000-500,6000/500,Q02,CROSS_CUTTING,false,clients/src/main/java/org/apache/kafka/clients/CommonClientConfigs.java,0.5822,false,0.0000,1.0000,1.0000,0.5000,,
+E003-6000-500,6000/500,Q03,BEHAVIOURAL,true,core/src/main/scala/kafka/network/SocketServer.scala,0.5686,true,1.0000,1.0000,1.0000,1.0000,true,2
